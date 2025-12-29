@@ -1,65 +1,269 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+
+import { useState } from "react";
+import { ethers } from "ethers";
+
+/* ================= CONFIG ================= */
+
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const USDC_DECIMALS = 6;
+
+// ⚠️ COLOQUE AQUI O CHAIN ID REAL DA ARC
+const ARC_CHAIN_ID = 5042002;
+
+const USDC_ABI = [
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+];
+
+
+/* ================= COMPONENT ================= */
+ import { useEffect } from "react";
+  
+export default function Page() {
+
+  const [address, setAddress] = useState<string | null>(null);
+  const [signer, setSigner] = useState<ethers.Signer | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  const [destino, setDestino] = useState("");
+  const [valor, setValor] = useState("");
+  const [status, setStatus] = useState("");
+
+  type Transaction = {
+  from: string;
+  to: string;
+  amount: string;
+  type: "sent" | "received";
+  hash?: string;
+};
+
+   useEffect(() => {
+  if (!signer || !address) return;
+
+  let contract: ethers.Contract;
+
+  async function listenTransfers() {
+    const provider = signer.provider;
+    if (!provider) return;
+
+    contract = new ethers.Contract(
+      USDC_ADDRESS,
+      USDC_ABI,
+      provider
+    );
+
+    contract.on("Transfer", (from, to, value, event) => {
+      const amount = ethers.formatUnits(value, USDC_DECIMALS);
+
+      if (to.toLowerCase() === address.toLowerCase()) {
+        setTransactions((prev) => [
+          {
+            from,
+            to,
+            amount,
+            type: "received",
+            hash: event?.log?.transactionHash,
+          },
+          ...prev,
+        ]);
+
+        setStatus(`💰 Recebido ${amount} USDC`);
+      }
+
+      if (from.toLowerCase() === address.toLowerCase()) {
+        setTransactions((prev) => [
+          {
+            from,
+            to,
+            amount,
+            type: "sent",
+            hash: event?.log?.transactionHash,
+          },
+          ...prev,
+        ]);
+
+        setStatus(`📤 Enviado ${amount} USDC`);
+      }
+    });
+  }
+
+  listenTransfers();
+
+  return () => {
+    if (contract) {
+      contract.removeAllListeners("Transfer");
+    }
+  };
+}, [signer, address]);
+
+
+
+  /* -------- Network check -------- */
+  async function verificarRede(provider: ethers.BrowserProvider) {
+    const network = await provider.getNetwork();
+    if (Number(network.chainId) !== ARC_CHAIN_ID) {
+      throw new Error("WRONG_NETWORK");
+    }
+  }
+
+  /* -------- Connect wallet -------- */
+  async function conectarWallet() {
+    if (typeof window === "undefined" || !window.ethereum) {
+      alert("Wallet não detectada");
+      return;
+    }
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+
+      // 👉 COMENTE esta linha se ainda não souber o chainId
+      // await verificarRede(provider);
+
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+
+      setSigner(signer);
+      setAddress(address);
+    } catch (err: any) {
+      if (err.message === "WRONG_NETWORK") {
+        alert("Troque para a Arc Network");
+      } else {
+        console.error(err);
+        alert("Erro ao conectar wallet");
+      }
+    }
+  }
+
+  /* -------- Send payment -------- */
+  async function enviarPagamento() {
+    if (!signer) return;
+
+    try {
+      if (!ethers.isAddress(destino)) {
+        alert("Endereço inválido");
+        return;
+      }
+
+      if (!valor || Number(valor) <= 0) {
+        alert("Valor inválido");
+        return;
+      }
+
+      setStatus("Enviando pagamento...");
+
+      const usdc = new ethers.Contract(
+        USDC_ADDRESS,
+        USDC_ABI,
+        signer
+      );
+
+      const tx = await usdc.transfer(
+        destino,
+        ethers.parseUnits(valor, USDC_DECIMALS)
+      );
+
+      setStatus("Aguardando confirmação...");
+      await tx.wait();
+
+      setStatus("Pagamento enviado!");
+      setDestino("");
+      setValor("");
+    } catch (err) {
+      console.error(err);
+      setStatus("Erro ao enviar pagamento");
+    }
+  }
+      const qrValue = address
+        ? JSON.stringify({
+            address,
+            token: "USDC",
+            network: "Arc",
+    })
+  : "";
+
+  /* ================= UI ================= */
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-zinc-900 rounded-2xl p-6 space-y-6">
+        <h1 className="text-white text-center text-2xl font-bold">
+          Arc Pay
+        </h1>
+
+        {!address ? (
+          <button
+            onClick={conectarWallet}
+            className="w-full py-3 bg-white text-black rounded-xl font-semibold"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            Conectar Wallet
+          </button>
+        ) : (
+          <>
+            <div className="bg-black text-white rounded-xl p-4 text-sm break-all">
+              {address}
+            </div>
+
+            <input
+              className="w-full p-3 rounded bg-zinc-800 text-white"
+              placeholder="Endereço destino"
+              value={destino}
+              onChange={(e) => setDestino(e.target.value)}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+            <input
+              className="w-full p-3 rounded bg-zinc-800 text-white"
+              placeholder="Valor USDC"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+            />
+
+            <button
+              onClick={enviarPagamento}
+              className="w-full py-3 bg-green-600 text-white rounded-xl"
+            >
+              Enviar
+            </button>
+            
+            {transactions.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h2 className="text-white text-sm font-semibold">
+                  Histórico de transações
+                </h2>
+
+                {transactions.map((tx, index) => (
+                  <div
+                    key={index}
+                    className="flex justify-between items-center bg-zinc-800 rounded-lg p-3 text-sm"
+                  >
+                    <span
+                      className={
+                        tx.type === "received"
+                          ? "text-green-400"
+                          : "text-red-400"
+                     }
+                  >
+                     {tx.type === "received" ? "Recebido" : "Enviado"}
+                  </span>
+
+                  <span className="text-white">
+                    {tx.amount} USDC
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+            {status && (
+              <p className="text-center text-sm text-zinc-400">
+                {status}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </main>
   );
 }

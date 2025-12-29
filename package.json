@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "ethers": "^6.16.0",
+    "framer-motion": "^12.23.26",
     "next": "16.1.1",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
