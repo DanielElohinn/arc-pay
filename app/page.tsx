@@ -43,9 +43,10 @@ export default function Page() {
   if (!signer || !address) return;
 
   let contract: ethers.Contract;
+  const activeSigner = signer; // ✅ trava o signer
 
   async function listenTransfers() {
-    const provider = signer.provider;
+    const provider = activeSigner.provider;
     if (!provider) return;
 
     contract = new ethers.Contract(
@@ -97,6 +98,7 @@ export default function Page() {
     }
   };
 }, [signer, address]);
+
 
 
 
