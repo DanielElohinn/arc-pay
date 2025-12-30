@@ -39,11 +39,13 @@ export default function Page() {
   hash?: string;
 };
 
-   useEffect(() => {
+    useEffect(() => {
   if (!signer || !address) return;
 
   let contract: ethers.Contract;
-  const activeSigner = signer; // ✅ trava o signer
+
+  const activeSigner = signer;   // ✅ não-null
+  const activeAddress = address.toLowerCase(); // ✅ não-null
 
   async function listenTransfers() {
     const provider = activeSigner.provider;
@@ -57,8 +59,10 @@ export default function Page() {
 
     contract.on("Transfer", (from, to, value, event) => {
       const amount = ethers.formatUnits(value, USDC_DECIMALS);
+      const toLower = to.toLowerCase();
+      const fromLower = from.toLowerCase();
 
-      if (to.toLowerCase() === address.toLowerCase()) {
+      if (toLower === activeAddress) {
         setTransactions((prev) => [
           {
             from,
@@ -73,7 +77,7 @@ export default function Page() {
         setStatus(`💰 Recebido ${amount} USDC`);
       }
 
-      if (from.toLowerCase() === address.toLowerCase()) {
+      if (fromLower === activeAddress) {
         setTransactions((prev) => [
           {
             from,
@@ -98,6 +102,7 @@ export default function Page() {
     }
   };
 }, [signer, address]);
+
 
 
 
